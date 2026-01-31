@@ -13,7 +13,7 @@ A beginner-friendly cryptocurrency trading simulator focused on **education** an
 
 ## 🚀 Live Demo
 
-https://4dr3n4l1n.github.io/rex/
+https://4dr3n4l1n.github.io/Rex/
 
 ## 📱 How to Use
 
