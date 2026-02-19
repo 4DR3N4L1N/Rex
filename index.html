@@ -2077,6 +2077,37 @@
             selectCrypto(cryptoId);
             showToast(`Selected ${cryptoId}. Enter amount to buy!`, 'info');
         }
+
+        // Setup Event Listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            // Market page search - filter table on input
+            const marketSearch = document.getElementById('cryptoSearch');
+            if (marketSearch) {
+                marketSearch.addEventListener('input', updateCryptoTable);
+            }
+            
+            // Buy page amount slider sync
+            const buySlider = document.getElementById('buyAmountSlider');
+            const buyInput = document.getElementById('buyAmount');
+            if (buySlider) {
+                buySlider.addEventListener('input', e => { 
+                    if (buyInput) buyInput.value = e.target.value; 
+                    updateBuyPreview(); 
+                });
+            }
+            if (buyInput) {
+                buyInput.addEventListener('input', e => { 
+                    if (buySlider) buySlider.value = e.target.value; 
+                    updateBuyPreview(); 
+                });
+            }
+            
+            // Limit price input
+            const limitPrice = document.getElementById('buyLimitPrice');
+            if (limitPrice) {
+                limitPrice.addEventListener('input', updateBuyPreview);
+            }
+        });
     </script>
 </body>
 </html>
