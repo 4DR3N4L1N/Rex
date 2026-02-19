@@ -1381,3 +1381,302 @@
     <div id="toastContainer" class="fixed bottom-6 right-6 z-50 space-y-3 pointer-events-none"></div>
 
     <script>
+        // State Management
+        const state = {
+            cash: 10000,
+            holdings: {},
+            transactions: [],
+            user: {
+                level: 1,
+                xp: 0,
+                completedLessons: [],
+                achievements: [],
+                skipWelcome: false,
+                theme: 'dark'
+            }
+        };
+
+        // Initialize App
+        document.addEventListener('DOMContentLoaded', () => {
+            loadState();
+            initializeTheme();
+            if (state.user.skipWelcome) {
+                document.getElementById('welcomeModal').classList.add('hidden');
+                document.getElementById('mainApp').classList.remove('opacity-50', 'pointer-events-none');
+            }
+        });
+
+        // Load State from localStorage
+        function loadState() {
+            const saved = localStorage.getItem('cryptoAcademyState');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                Object.assign(state, parsed);
+            }
+        }
+
+        // Save State to localStorage
+        function saveState() {
+            localStorage.setItem('cryptoAcademyState', JSON.stringify(state));
+        }
+
+        // Theme Toggle
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+            state.user.theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+            saveState();
+        }
+
+        function initializeTheme() {
+            if (state.user.theme === 'light') {
+                document.documentElement.classList.remove('dark');
+            }
+        }
+
+        // START APP - Close Welcome Modal
+        function startApp() {
+            const skipWelcome = document.getElementById('skipWelcome').checked;
+            if (skipWelcome) {
+                state.user.skipWelcome = true;
+                saveState();
+            }
+            
+            // Hide modal
+            document.getElementById('welcomeModal').classList.add('hidden');
+            document.getElementById('mainApp').classList.remove('opacity-50', 'pointer-events-none');
+            
+            // Show welcome toast
+            showToast('Welcome to Crypto Academy! 🎓', 'success');
+        }
+
+        // Show Toast Notification
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            const colors = {
+                success: 'border-success bg-success/10 text-success',
+                error: 'border-danger bg-danger/10 text-danger',
+                info: 'border-primary-500 bg-primary-500/10 text-primary-400',
+                warning: 'border-warning bg-warning/10 text-warning'
+            };
+            
+            const icons = {
+                success: 'fa-check-circle',
+                error: 'fa-exclamation-circle',
+                info: 'fa-info-circle',
+                warning: 'fa-exclamation-triangle'
+            };
+            
+            toast.className = `glass border-l-4 ${colors[type]} px-6 py-4 rounded-xl flex items-center gap-3 shadow-lg animate-slide-up pointer-events-auto`;
+            toast.innerHTML = `
+                <i class="fas ${icons[type]} text-xl"></i>
+                <span class="font-medium">${message}</span>
+            `;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(10px)';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // Tab Navigation
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.add('hidden');
+            });
+            
+            // Show selected tab
+            document.getElementById(`content-${tabName}`).classList.remove('hidden');
+            
+            // Update sidebar active state
+            document.querySelectorAll('.sidebar-item').forEach(item => {
+                item.classList.remove('active', 'bg-white/10');
+            });
+            
+            const navItem = document.getElementById(`nav-${tabName}`);
+            if (navItem) {
+                navItem.classList.add('active', 'bg-white/10');
+            }
+        }
+
+        // Toggle Sidebar (Mobile)
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('-translate-x-full');
+        }
+
+        // Format Money
+        function formatMoney(amount) {
+            return '$' + amount.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+
+        // Lesson Functions
+        function openLesson(lessonId) {
+            showToast(`Opening Lesson ${lessonId}...`, 'info');
+        }
+
+        function closeLesson() {
+            document.getElementById('lessonModal').classList.add('hidden');
+        }
+
+        function completeLesson() {
+            showToast('Lesson completed! +50 XP', 'success');
+            closeLesson();
+        }
+
+        // AI Chat Functions
+        function toggleAIChat() {
+            const panel = document.getElementById('aiChatPanel');
+            panel.classList.toggle('hidden');
+        }
+
+        function sendAIChatMessage() {
+            const input = document.getElementById('aiChatInput');
+            const message = input.value.trim();
+            if (message) {
+                addChatMessage(message, 'user');
+                input.value = '';
+                
+                setTimeout(() => {
+                    addChatMessage('I\'m analyzing the market data for you... 📊', 'ai');
+                }, 1000);
+            }
+        }
+
+        function addChatMessage(text, sender) {
+            const container = document.getElementById('aiChatMessages');
+            const div = document.createElement('div');
+            div.className = `chat-bubble flex gap-3 ${sender === 'user' ? 'flex-row-reverse' : ''}`;
+            
+            if (sender === 'ai') {
+                div.innerHTML = `
+                    <div class="w-8 h-8 rounded-full gradient-bg flex-shrink-0 flex items-center justify-center">
+                        <i class="fas fa-robot text-white text-xs"></i>
+                    </div>
+                    <div class="glass rounded-2xl rounded-tl-sm p-3 text-sm max-w-[80%]">
+                        <p>${text}</p>
+                    </div>
+                `;
+            } else {
+                div.innerHTML = `
+                    <div class="w-8 h-8 rounded-full bg-slate-600 flex-shrink-0 flex items-center justify-center">
+                        <i class="fas fa-user text-white text-xs"></i>
+                    </div>
+                    <div class="glass rounded-2xl rounded-tr-sm p-3 text-sm max-w-[80%] bg-primary-500/20">
+                        <p>${text}</p>
+                    </div>
+                `;
+            }
+            
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function quickAIQuestion(type) {
+            const questions = {
+                market_analysis: 'What\'s the current market analysis?',
+                top_picks: 'What are your top picks today?',
+                risk_check: 'How risky is my portfolio?'
+            };
+            document.getElementById('aiChatInput').value = questions[type];
+            sendAIChatMessage();
+        }
+
+        // Leaderboard Functions
+        function refreshLeaderboard() {
+            showToast('Leaderboard refreshed!', 'success');
+        }
+
+        // Initialize demo data
+        function initializeLeaderboard() {
+            const demoData = [
+                { username: 'CryptoKing', portfolioValue: 15420, totalReturn: 54.2, winRate: 68, level: 12 },
+                { username: 'DiamondHands', portfolioValue: 14200, totalReturn: 42.0, winRate: 71, level: 10 },
+                { username: 'MoonWalker', portfolioValue: 13850, totalReturn: 38.5, winRate: 65, level: 9 },
+            ];
+            
+            const tbody = document.getElementById('leaderboardTable');
+            if (tbody) {
+                tbody.innerHTML = demoData.map((user, i) => `
+                    <tr class="border-b border-white/5">
+                        <td class="py-4 pl-5 font-bold">${i + 1}</td>
+                        <td class="font-medium">${user.username}</td>
+                        <td class="text-right font-bold">${formatMoney(user.portfolioValue)}</td>
+                        <td class="text-right text-success">+${user.totalReturn}%</td>
+                        <td class="text-right hidden sm:table-cell">${user.winRate}%</td>
+                        <td class="text-right pr-5">${user.level}</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        // Render Lessons
+        function renderLessons() {
+            const grid = document.getElementById('lessonsGrid');
+            if (!grid) return;
+            
+            const lessons = [
+                { id: 1, title: 'What is Bitcoin?', category: 'Beginner', duration: '5 min', icon: '₿', color: 'from-orange-400 to-yellow-500' },
+                { id: 2, title: 'Reading Charts', category: 'Beginner', duration: '8 min', icon: '📈', color: 'from-blue-400 to-cyan-500' },
+                { id: 3, title: 'Risk Management', category: 'Intermediate', duration: '10 min', icon: '🛡️', color: 'from-red-400 to-pink-500' },
+                { id: 4, title: 'Altcoins Explained', category: 'Intermediate', duration: '7 min', icon: '💎', color: 'from-green-400 to-emerald-500' },
+                { id: 5, title: 'Trading Strategies', category: 'Advanced', duration: '12 min', icon: '🎯', color: 'from-purple-400 to-indigo-500' },
+                { id: 6, title: 'Market Psychology', category: 'Expert', duration: '15 min', icon: '🧠', color: 'from-teal-400 to-cyan-500' },
+            ];
+            
+            grid.innerHTML = lessons.map(lesson => `
+                <div class="glass rounded-2xl overflow-hidden cursor-pointer hover-lift" onclick="openLesson(${lesson.id})">
+                    <div class="h-32 bg-gradient-to-br ${lesson.color} flex items-center justify-center">
+                        <span class="text-5xl">${lesson.icon}</span>
+                    </div>
+                    <div class="p-5">
+                        <div class="flex justify-between mb-2">
+                            <span class="text-xs px-2 py-1 rounded-full bg-white/10">${lesson.category}</span>
+                            <span class="text-xs text-slate-400">${lesson.duration}</span>
+                        </div>
+                        <h3 class="font-bold">${lesson.title}</h3>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Render Achievements
+        function renderAchievements() {
+            const grid = document.getElementById('achievementsGrid');
+            if (!grid) return;
+            
+            const achievements = [
+                { name: 'First Steps', icon: '👣', unlocked: true },
+                { name: 'Trader', icon: '💰', unlocked: true },
+                { name: 'Learner', icon: '📚', unlocked: false },
+                { name: 'Master', icon: '🏆', unlocked: false },
+                { name: 'Expert', icon: '⭐', unlocked: false },
+                { name: 'Legend', icon: '👑', unlocked: false },
+            ];
+            
+            grid.innerHTML = achievements.map(ach => `
+                <div class="${ach.unlocked ? '' : 'opacity-40 grayscale'} glass rounded-2xl p-5 text-center hover-lift cursor-pointer">
+                    <div class="text-4xl mb-2">${ach.icon}</div>
+                    <h4 class="font-bold text-sm">${ach.name}</h4>
+                    ${!ach.unlocked ? '<div class="text-xs text-slate-500 mt-1">Locked</div>' : ''}
+                </div>
+            `).join('');
+        }
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeLeaderboard();
+            renderLessons();
+            renderAchievements();
+        });
+    </script>
+</body>
+</html>
