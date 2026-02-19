@@ -806,12 +806,26 @@
                             
                             <div class="space-y-5">
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Select Cryptocurrency</label>
+                                    <label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Search Cryptocurrency</label>
                                     <div class="relative">
-                                        <select id="buyCryptoSelect" class="w-full appearance-none bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:border-success transition-colors">
-                                            <option value="">Choose a coin...</option>
-                                        </select>
-                                        <i class="fas fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                                        <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                                        <input type="text" id="cryptoSearchInput" placeholder="Search any coin (e.g. Bitcoin, ETH, SOL)..." 
+                                            class="w-full bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 rounded-xl pl-10 pr-4 py-3.5 text-sm focus:outline-none focus:border-success transition-colors"
+                                            oninput="searchCrypto(this.value)"
+                                            autocomplete="off">
+                                        <!-- Search Results Dropdown -->
+                                        <div id="cryptoSearchResults" class="hidden absolute top-full left-0 right-0 mt-2 bg-slate-800 rounded-xl border border-white/10 shadow-2xl max-h-60 overflow-y-auto z-50"></div>
+                                    </div>
+                                    <input type="hidden" id="buyCryptoSelect" value="">
+                                    <div id="selectedCryptoDisplay" class="hidden mt-3 p-3 glass rounded-xl flex items-center gap-3">
+                                        <img id="selectedCryptoImage" src="" class="w-10 h-10 rounded-full" alt="">
+                                        <div class="flex-1">
+                                            <p id="selectedCryptoName" class="font-bold"></p>
+                                            <p id="selectedCryptoPrice" class="text-sm text-slate-400"></p>
+                                        </div>
+                                        <button onclick="clearSelectedCrypto()" class="text-slate-400 hover:text-danger">
+                                            <i class="fas fa-times"></i>
+                                        </button>
                                     </div>
                                 </div>
                                 
@@ -1671,7 +1685,241 @@
             `).join('');
         }
 
-        // Initialize on load
+        // CoinGecko Search Functionality
+        let searchDebounceTimer;
+        
+        async function searchCrypto(query) {
+            const resultsDiv = document.getElementById('cryptoSearchResults');
+            
+            if (!query || query.length < 2) {
+                resultsDiv.classList.add('hidden');
+                return;
+            }
+            
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(async () => {
+                try {
+                    // Use CoinGecko search API
+                    const response = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`);
+                    const data = await response.json();
+                    
+                    if (data.coins && data.coins.length > 0) {
+                        resultsDiv.innerHTML = data.coins.slice(0, 10).map(coin => `
+                            <div class="flex items-center gap-3 p-3 hover:bg-white/10 cursor-pointer transition-colors border-b border-white/5 last:border-0"
+                                 onclick="selectSearchResult('${coin.id}', '${coin.name}', '${coin.symbol}', '${coin.large || coin.thumb}')">
+                                <img src="${coin.large || coin.thumb}" class="w-10 h-10 rounded-full" alt="${coin.symbol}">
+                                <div class="flex-1">
+                                    <p class="font-bold">${coin.name}</p>
+                                    <p class="text-xs text-slate-400 uppercase">${coin.symbol}</p>
+                                </div>
+                                <span class="text-xs text-slate-500">#${coin.market_cap_rank || 'N/A'}</span>
+                            </div>
+                        `).join('');
+                        resultsDiv.classList.remove('hidden');
+                    } else {
+                        resultsDiv.innerHTML = '<div class="p-4 text-center text-slate-400">No coins found</div>';
+                        resultsDiv.classList.remove('hidden');
+                    }
+                } catch (error) {
+                    console.error('Search error:', error);
+                    resultsDiv.innerHTML = '<div class="p-4 text-center text-danger">Search failed. Try again.</div>';
+                    resultsDiv.classList.remove('hidden');
+                }
+            }, 300);
+        }
+        
+        async function selectSearchResult(id, name, symbol, image) {
+            // Hide search results
+            document.getElementById('cryptoSearchResults').classList.add('hidden');
+            document.getElementById('cryptoSearchInput').value = '';
+            
+            // Set the hidden input
+            document.getElementById('buyCryptoSelect').value = id;
+            
+            // Show selected crypto display
+            document.getElementById('selectedCryptoImage').src = image;
+            document.getElementById('selectedCryptoName').textContent = `${name} (${symbol.toUpperCase()})`;
+            document.getElementById('selectedCryptoDisplay').classList.remove('hidden');
+            
+            // Fetch current price for this coin
+            try {
+                const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd`);
+                const data = await response.json();
+                const price = data[id]?.usd || 0;
+                document.getElementById('selectedCryptoPrice').textContent = formatMoney(price);
+                document.getElementById('buyCurrentPrice').textContent = formatMoney(price);
+            } catch (error) {
+                console.error('Price fetch error:', error);
+                document.getElementById('selectedCryptoPrice').textContent = 'Price unavailable';
+            }
+            
+            // Add to crypto cache if not present
+            if (!cryptoCache.find(c => c.id === id)) {
+                cryptoCache.push({
+                    id: id,
+                    name: name,
+                    symbol: symbol,
+                    image: image,
+                    current_price: 0
+                });
+            }
+        }
+        
+        function clearSelectedCrypto() {
+            document.getElementById('buyCryptoSelect').value = '';
+            document.getElementById('selectedCryptoDisplay').classList.add('hidden');
+            document.getElementById('buyCurrentPrice').textContent = '--';
+        }
+        
+        // Close search results when clicking outside
+        document.addEventListener('click', (e) => {
+            const searchContainer = document.querySelector('#cryptoSearchInput')?.parentElement;
+            if (searchContainer && !searchContainer.contains(e.target)) {
+                document.getElementById('cryptoSearchResults')?.classList.add('hidden');
+            }
+        });
+
+        // Trading Functions
+        let buyOrderType = 'market';
+        
+        function setBuyOrderType(type) {
+            buyOrderType = type;
+            document.getElementById('buyMarketBtn').className = type === 'market' 
+                ? 'flex-1 py-2 rounded-lg text-sm font-medium bg-success text-white transition-colors'
+                : 'flex-1 py-2 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600 transition-colors';
+            document.getElementById('buyLimitBtn').className = type === 'limit'
+                ? 'flex-1 py-2 rounded-lg text-sm font-medium bg-success text-white transition-colors'
+                : 'flex-1 py-2 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600 transition-colors';
+            
+            const limitContainer = document.getElementById('buyLimitPriceContainer');
+            if (type === 'limit') {
+                limitContainer.classList.remove('hidden');
+            } else {
+                limitContainer.classList.add('hidden');
+            }
+            updateBuyPreview();
+        }
+        
+        function setBuyAmount(amount) {
+            if (amount === 'max') {
+                amount = state.cash;
+            }
+            document.getElementById('buyAmount').value = amount;
+            document.getElementById('buyAmountSlider').value = amount;
+            updateBuyPreview();
+        }
+        
+        function updateBuyPreview() {
+            const cryptoId = document.getElementById('buyCryptoSelect').value;
+            const amount = parseFloat(document.getElementById('buyAmount').value) || 0;
+            const limitPrice = parseFloat(document.getElementById('buyLimitPrice')?.value) || 0;
+            
+            if (!cryptoId) {
+                document.getElementById('buyReceiveAmount').textContent = '0';
+                return;
+            }
+            
+            const crypto = cryptoCache.find(c => c.id === cryptoId);
+            let price = crypto?.current_price || 0;
+            
+            // Use limit price if set
+            if (buyOrderType === 'limit' && limitPrice > 0) {
+                price = limitPrice;
+            }
+            
+            if (price > 0 && amount > 0) {
+                const receiveAmount = amount / price;
+                document.getElementById('buyReceiveAmount').textContent = receiveAmount.toFixed(6) + ' ' + (crypto?.symbol?.toUpperCase() || '');
+            } else {
+                document.getElementById('buyReceiveAmount').textContent = '0';
+            }
+        }
+        
+        async function executeBuy() {
+            const cryptoId = document.getElementById('buyCryptoSelect').value;
+            const amount = parseFloat(document.getElementById('buyAmount').value) || 0;
+            const limitPrice = parseFloat(document.getElementById('buyLimitPrice')?.value) || 0;
+            
+            if (!cryptoId) {
+                showToast('Please select a cryptocurrency', 'error');
+                return;
+            }
+            
+            if (amount <= 0) {
+                showToast('Please enter an amount', 'error');
+                return;
+            }
+            
+            if (amount > state.cash) {
+                showToast('Insufficient funds', 'error');
+                return;
+            }
+            
+            // Get current price
+            let price = 0;
+            const cachedCrypto = cryptoCache.find(c => c.id === cryptoId);
+            
+            if (cachedCrypto?.current_price) {
+                price = cachedCrypto.current_price;
+            } else {
+                // Fetch price if not in cache
+                try {
+                    const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cryptoId}&vs_currencies=usd`);
+                    const data = await response.json();
+                    price = data[cryptoId]?.usd || 0;
+                } catch (error) {
+                    showToast('Failed to get price. Try again.', 'error');
+                    return;
+                }
+            }
+            
+            if (buyOrderType === 'limit' && limitPrice > 0) {
+                price = limitPrice;
+            }
+            
+            if (price <= 0) {
+                showToast('Invalid price. Try again.', 'error');
+                return;
+            }
+            
+            const receiveAmount = amount / price;
+            
+            // Execute the buy
+            if (!state.holdings[cryptoId]) {
+                state.holdings[cryptoId] = { amount: 0, totalCost: 0 };
+            }
+            
+            state.holdings[cryptoId].amount += receiveAmount;
+            state.holdings[cryptoId].totalCost += amount;
+            state.cash -= amount;
+            
+            // Record transaction
+            state.transactions.push({
+                type: 'buy',
+                id: cryptoId,
+                symbol: cachedCrypto?.symbol || cryptoId,
+                amount: receiveAmount,
+                price: price,
+                total: amount,
+                date: new Date().toISOString()
+            });
+            
+            saveState();
+            updateUI();
+            
+            showToast(`Bought ${receiveAmount.toFixed(6)} ${cachedCrypto?.symbol?.toUpperCase() || cryptoId}!`, 'success');
+            
+            // Reset form
+            document.getElementById('buyAmount').value = '0';
+            document.getElementById('buyAmountSlider').value = '0';
+            updateBuyPreview();
+        }
+        
+        // Update UI with all elements
+        function updateUI() {
+            document.getElementById('buyAvailable').textContent = formatMoney(state.cash);
+            // Update other UI elements as needed
+        }
         document.addEventListener('DOMContentLoaded', () => {
             initializeLeaderboard();
             renderLessons();
